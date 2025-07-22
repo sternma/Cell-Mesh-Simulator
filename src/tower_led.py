@@ -11,6 +11,7 @@ led = RGBLED(red=17, green=27, blue=22)
 # Path to your JSON mapping
 CONFIG_PATH = Path("/home/pi/tower_led_config.json")
 
+
 def load_config():
     """Load SSID→color mapping from JSON file."""
     try:
@@ -26,6 +27,7 @@ def load_config():
         print(f"Error loading config: {e}")
         return {}
 
+
 def get_ssid():
     """Return current associated SSID, or None."""
     try:
@@ -34,13 +36,15 @@ def get_ssid():
     except subprocess.CalledProcessError:
         return None
 
+
 def main(poll_interval=0.5):
     mapping = load_config()
     last_ssid = None
 
     while True:
-        # reload config each loop in case you edit it on the fly
-        mapping = load_config()
+        # uncomment to reload config each loop in case you edit it on the fly
+        # otherwise, restart the script/service to apply changes
+        # mapping = load_config()
         ssid = get_ssid()
 
         if ssid != last_ssid:
@@ -54,6 +58,7 @@ def main(poll_interval=0.5):
                 print(f"{ssid or 'No SSID'} not in config → LED off")
 
         time.sleep(poll_interval)
+
 
 if __name__ == "__main__":
     main()
