@@ -50,7 +50,7 @@ hw_setup/
    * **CHANNEL**: `1`, `6`, `11` (2.4 GHz) or `36+` (5 GHz)
    * **TX_POWER_MBM**: (optional) transmit power in mBm; defaults to `1000` (10 dBm)
 
-2. **Optional hidden SSID**: edit `/etc/hostapd/hostapd.conf` and set `ignore_broadcast_ssid=1`.
+2. **Optional hidden SSID**: edit `/etc/hostapd/hostapd.conf` and set `ignore_broadcast_ssid=0` to make SSID visible.  Hidden by default.
 
 3. **Verify**:
 
