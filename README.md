@@ -41,13 +41,14 @@ hw_setup/
 1. **Run the script** on each tower Pi as root:
 
    ```bash
-   sudo hw_setup/tower_setup.sh <ID> <STATIC_IP> <SSID> <CHANNEL>
+   sudo hw_setup/tower_setup.sh <ID> <STATIC_IP> <SSID> <CHANNEL> [TX_POWER_MBM]
    ```
 
    * **ID**: Tower number (1–4)
    * **STATIC\_IP**: e.g. `192.168.50.11`
    * **SSID**: e.g. `Tower1`
    * **CHANNEL**: `1`, `6`, `11` (2.4 GHz) or `36+` (5 GHz)
+   * **TX_POWER_MBM**: (optional) transmit power in mBm; defaults to `1000` (10 dBm)
 
 2. **Optional hidden SSID**: edit `/etc/hostapd/hostapd.conf` and set `ignore_broadcast_ssid=1`.
 
