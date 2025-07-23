@@ -34,6 +34,23 @@ hw_setup/
 
 ---
 
+## 🔌 Breadboard Wiring
+
+Before you power on the client, wire the RGB LED to your Pi GPIO header and breadboard as follows:
+
+```
+Pi GPIO17 ──220 Ω──► Red LED pin
+Pi GPIO27 ──220 Ω──► Green LED pin
+Pi GPIO22 ──220 Ω──► Blue LED pin
+Pi GND    ─────────► LED common cathode
+```
+
+- Use ¼ W (0.25 W) 220 Ω resistors on each color leg to limit current (~5–10 mA per channel).
+- Place the LED’s long lead (common cathode) into the GND rail of the breadboard.
+- Double‑check your wiring before powering up to avoid any shorts.
+
+---
+
 ## 🚀 Setup
 
 ### 1. Tower Setup
