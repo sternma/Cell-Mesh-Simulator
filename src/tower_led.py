@@ -2,11 +2,13 @@
 import json
 import subprocess
 import time
-from gpiozero import RGBLED
+from gpiozero import Device, RGBLED
+from gpiozero.pins.rpigpio import RPiGPIOFactory
 from pathlib import Path
 
 # LED wiring (GPIO pins)
-led = RGBLED(red=17, green=27, blue=22)
+Device.pin_factory = RPiGPIOFactory()
+led = RGBLED(red=18, green=13, blue=12)
 
 # Path to your JSON mapping
 CONFIG_PATH = Path("/home/pi/tower_led_config.json")

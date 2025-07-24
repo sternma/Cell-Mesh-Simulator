@@ -58,6 +58,8 @@ Wants=network-online.target
 ExecStart=/usr/bin/env python3 $SCRIPT
 Restart=always
 User=pi
+RestartSec=5s
+WorkingDirectory=/home/pi/cell-mesh-simulator/src
 
 [Install]
 WantedBy=multi-user.target

@@ -39,9 +39,9 @@ hw_setup/
 Before you power on the client, wire the RGB LED to your Pi GPIO header and breadboard as follows:
 
 ```
-Pi GPIO17 ──220 Ω──► Red LED pin
-Pi GPIO27 ──220 Ω──► Green LED pin
-Pi GPIO22 ──220 Ω──► Blue LED pin
+Pi GPIO18 ──220 Ω──► Red LED pin
+Pi GPIO13 ──220 Ω──► Green LED pin
+Pi GPIO12 ──220 Ω──► Blue LED pin
 Pi GND    ─────────► LED common cathode
 ```
 
