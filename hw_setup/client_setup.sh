@@ -10,10 +10,14 @@ apt update
 apt install -y python3-gpiozero wireless-tools jq wpasupplicant
 
 # 1a. Unblock Wi-Fi if soft-blocked
-echo "Unblocking Wi-Fi..."
-rfkill unblock wifi || true
+ echo "Unblocking Wi-Fi..."
+ rfkill unblock wifi || true
 
-# 2. Check that your config & script exist
+# 1b. Set Wi-Fi country to US (persist across reboots)
+ echo "Setting Wi-Fi country to US..."
+ raspi-config nonint do_wifi_country US
+
+# 2. Check that your config & script exist Check that your config & script exist
 if [ ! -f "$CONFIG" ]; then
   echo "Error: Config file not found at $CONFIG" >&2
   exit 1
