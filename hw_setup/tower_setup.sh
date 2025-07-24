@@ -25,33 +25,38 @@ apt update
 apt install -y hostapd
 systemctl stop hostapd
 
-# 2. Create a dedicated AP interface ap0 from wlan0
-ip link set wlan0 down
-iw phy phy0 interface add ap0 type ap
-ip link set ap0 up
+# 2. Create hostapd systemd override to reset wlan0 before startup
+mkdir -p /etc/systemd/system/hostapd.service.d
+cat > /etc/systemd/system/hostapd.service.d/override.conf <<EOF
+[Unit]
+# Wait for the wlan0 device node to be available
+After=sys-subsystem-net-devices-wlan0.device
+Wants=sys-subsystem-net-devices-wlan0.device
 
-# 3. Configure static IP on ap0
-cp /etc/dhcpcd.conf /etc/dhcpcd.conf.bak
-cat >> /etc/dhcpcd.conf <<EOF
+[Service]
+# reset the link
+ExecStartPre=/bin/sleep 5
+ExecStartPre=/usr/sbin/ip link set wlan0 down
+ExecStartPre=/usr/sbin/ip link set wlan0 up
 
-interface ap0
-  static ip_address=${STATIC_IP}/24
-  nohook wpa_supplicant
+RestartSec=5
 EOF
 
-# 4. Set wireless country
+# 3. Set wireless country
 raspi-config nonint do_wifi_country US
 
-# 5. Mask wpa_supplicant to prevent interference
-systemctl stop wpa_supplicant
-systemctl disable wpa_supplicant
-systemctl mask wpa_supplicant
+# 4. Mask wpa_supplicant to prevent it from interfering with hostapd
+systemctl stop wpa_supplicant || true
+systemctl disable wpa_supplicant || true
+systemctl mask wpa_supplicant || true
 
-# 6. Configure TX power on ap0
+# 5. Configure TX power
+# Ensure correct regulatory domain
 iw reg set US
-iw dev ap0 set txpower fixed ${TX_POWER_MBM}
+# Apply fixed power
+iw dev wlan0 set txpower fixed ${TX_POWER_MBM}
 
-# 7. Write hostapd config for ap0
+# 6. Write hostapd config
 HW_MODE="g"
 EXTRA=""
 if [ "${CHANNEL}" -gt 14 ]; then
@@ -63,7 +68,7 @@ cat > /etc/hostapd/hostapd.conf <<EOF
 ctrl_interface=/var/run/hostapd
 ctrl_interface_group=netdev
 
-interface=ap0
+interface=wlan0
 driver=nl80211
 ssid=${SSID}
 hw_mode=${HW_MODE}
@@ -75,16 +80,16 @@ ignore_broadcast_ssid=1
 wpa=0
 EOF
 
-# 8. Point hostapd to its config
+# 7. Point hostapd to its config
 sed -i 's|^#DAEMON_CONF.*|DAEMON_CONF="/etc/hostapd/hostapd.conf"|' /etc/default/hostapd
 
-# 9. Enable & start hostapd
+# 8. Enable & start hostapd
 systemctl unmask hostapd
 systemctl enable hostapd
 systemctl restart hostapd
 
-# 10. Report
-current_power=$(iw dev ap0 info | grep txpower)
+# 9. Report
+current_power=$(iw dev wlan0 info | grep txpower)
 echo "Tower ${TOWER_ID} configured:" 
  echo "  SSID=${SSID}, CHANNEL=${CHANNEL}, IP=${STATIC_IP}" 
  echo "  TX power set to ${TX_POWER_MBM} mBm (${current_power})"
