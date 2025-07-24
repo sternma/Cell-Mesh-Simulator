@@ -54,7 +54,7 @@ systemctl mask wpa_supplicant || true
 # Ensure correct regulatory domain
 iw reg set US
 # Apply fixed power
-iw dev wlan0 set txpower fixed ${TX_POWER_MBM}
+sudo iw dev wlan0 set txpower fixed ${TX_POWER_MBM}
 
 # 6. Write hostapd config
 HW_MODE="g"
