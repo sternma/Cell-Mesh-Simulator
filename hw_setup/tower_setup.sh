@@ -25,30 +25,33 @@ apt update
 apt install -y hostapd
 systemctl stop hostapd
 
-# 2. Configure static IP on wlan0
+# 2. Create a dedicated AP interface ap0 from wlan0
+ip link set wlan0 down
+iw phy phy0 interface add ap0 type ap
+ip link set ap0 up
+
+# 3. Configure static IP on ap0
 cp /etc/dhcpcd.conf /etc/dhcpcd.conf.bak
 cat >> /etc/dhcpcd.conf <<EOF
 
-interface wlan0
+interface ap0
   static ip_address=${STATIC_IP}/24
   nohook wpa_supplicant
 EOF
 
-# 3. Set wireless country
+# 4. Set wireless country
 raspi-config nonint do_wifi_country US
 
-# 4. Mask wpa_supplicant to prevent it from interfering with hostapd
+# 5. Mask wpa_supplicant to prevent interference
 systemctl stop wpa_supplicant
 systemctl disable wpa_supplicant
 systemctl mask wpa_supplicant
 
-# 4. Configure TX power
-# Ensure correct regulatory domain
+# 6. Configure TX power on ap0
 iw reg set US
-# Apply fixed power
-iw dev wlan0 set txpower fixed ${TX_POWER_MBM}
+iw dev ap0 set txpower fixed ${TX_POWER_MBM}
 
-# 5. Write hostapd config
+# 7. Write hostapd config for ap0
 HW_MODE="g"
 EXTRA=""
 if [ "${CHANNEL}" -gt 14 ]; then
@@ -60,7 +63,7 @@ cat > /etc/hostapd/hostapd.conf <<EOF
 ctrl_interface=/var/run/hostapd
 ctrl_interface_group=netdev
 
-interface=wlan0
+interface=ap0
 driver=nl80211
 ssid=${SSID}
 hw_mode=${HW_MODE}
@@ -72,16 +75,16 @@ ignore_broadcast_ssid=1
 wpa=0
 EOF
 
-# 6. Point hostapd to its config
+# 8. Point hostapd to its config
 sed -i 's|^#DAEMON_CONF.*|DAEMON_CONF="/etc/hostapd/hostapd.conf"|' /etc/default/hostapd
 
-# 7. Enable & start hostapd
+# 9. Enable & start hostapd
 systemctl unmask hostapd
 systemctl enable hostapd
 systemctl restart hostapd
 
-# 8. Report
-current_power=$(iw dev wlan0 info | grep txpower)
+# 10. Report
+current_power=$(iw dev ap0 info | grep txpower)
 echo "Tower ${TOWER_ID} configured:" 
  echo "  SSID=${SSID}, CHANNEL=${CHANNEL}, IP=${STATIC_IP}" 
  echo "  TX power set to ${TX_POWER_MBM} mBm (${current_power})"
