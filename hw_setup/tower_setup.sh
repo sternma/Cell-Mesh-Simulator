@@ -52,6 +52,9 @@ if [ "${CHANNEL}" -gt 14 ]; then
 fi
 
 cat > /etc/hostapd/hostapd.conf <<EOF
+ctrl_interface=/var/run/hostapd
+ctrl_interface_group=netdev
+
 interface=wlan0
 driver=nl80211
 ssid=${SSID}
