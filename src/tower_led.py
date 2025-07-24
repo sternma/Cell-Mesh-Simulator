@@ -2,6 +2,7 @@
 import json
 import subprocess
 import time
+import re
 from gpiozero import Device, RGBLED
 from gpiozero.pins.rpigpio import RPiGPIOFactory
 from pathlib import Path
@@ -31,12 +32,20 @@ def load_config():
 
 
 def get_ssid():
-    """Return current associated SSID, or None."""
+    """
+    Returns the current SSID by parsing `iwconfig wlan0`.
+    Falls back to None if not associated.
+    """
     try:
-        out = subprocess.check_output(["iwgetid", "-r"], stderr=subprocess.DEVNULL)
-        return out.decode().strip() or None
+        iw = subprocess.check_output(["iwconfig", "wlan0"], stderr=subprocess.DEVNULL)
+        iw = iw.decode()
+        m = re.search(r'ESSID:"([^"]+)"', iw)
+        if m:
+            essid = m.group(1)
+            return essid if essid != "off/any" else None
     except subprocess.CalledProcessError:
-        return None
+        pass
+    return None
 
 
 def main(poll_interval=0.5):
