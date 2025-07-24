@@ -9,6 +9,10 @@ SCRIPT="/home/pi/cell-mesh-simulator/src/tower_led.py"
 apt update
 apt install -y python3-gpiozero wireless-tools jq wpasupplicant
 
+# 1a. Unblock Wi-Fi if soft-blocked
+echo "Unblocking Wi-Fi..."
+rfkill unblock wifi || true
+
 # 2. Check that your config & script exist
 if [ ! -f "$CONFIG" ]; then
   echo "Error: Config file not found at $CONFIG" >&2
@@ -24,53 +28,66 @@ chown pi:pi "$CONFIG" "$SCRIPT"
 chmod 644 "$CONFIG"
 chmod +x  "$SCRIPT"
 
-# 4. Generate wpa_supplicant.conf from JSON SSIDs
-WPA_CONF="/etc/wpa_supplicant/wpa_supplicant.conf"
-cp "$WPA_CONF" "${WPA_CONF}.bak"
-cat > "$WPA_CONF" <<EOF
+# 4. Generate wpa_supplicant global config
+GLOBAL_CONF="/etc/wpa_supplicant/wpa_supplicant.conf"
+INTERF_CONF="/etc/wpa_supplicant/wpa_supplicant-wlan0.conf"
+cp "$GLOBAL_CONF" "${GLOBAL_CONF}.bak"
+cat > "$GLOBAL_CONF" <<EOF
 ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev
 update_config=1
 country=US
 EOF
-
 for ssid in $(jq -r 'keys[]' "$CONFIG"); do
-  cat >> "$WPA_CONF" <<NET
+  cat >> "$GLOBAL_CONF" <<NET
 network={
     ssid="${ssid}"
     key_mgmt=NONE
     scan_ssid=1
-    hidden=1
     priority=10
     bgscan="simple:30:-65:300"
 }
 NET
 done
 
-# 5. Create systemd service unit
+# 5. Create interface-specific config
+cp "$GLOBAL_CONF" "$INTERF_CONF"
+chmod 644 "$INTERF_CONF"
+
+# 6. Setup wpa_supplicant: disable global, enable per-interface
+echo "Configuring wpa_supplicant service for wlan0..."
+systemctl stop wpa_supplicant.service || true
+systemctl disable wpa_supplicant.service || true
+systemctl enable wpa_supplicant@wlan0.service
+systemctl restart wpa_supplicant@wlan0.service
+
+# 7. Create tower-led systemd service
 SERVICE="/etc/systemd/system/tower-led.service"
 cat > "$SERVICE" <<EOF
 [Unit]
 Description=Tower-LED Indicator (dynamic config)
-After=network-online.target
-Wants=network-online.target
+After=network-online.target wpa_supplicant@wlan0.service
+Wants=network-online.target wpa_supplicant@wlan0.service
 
 [Service]
+User=pi
+WorkingDirectory=/home/pi/cell-mesh-simulator/src
 ExecStart=/usr/bin/env python3 $SCRIPT
 Restart=always
-User=pi
 RestartSec=5s
-WorkingDirectory=/home/pi/cell-mesh-simulator/src
+StandardOutput=journal
+StandardError=journal
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
-# 6. Enable & start the service
+# 8. Enable & start tower-led service
 systemctl daemon-reload
 systemctl enable tower-led
 systemctl restart tower-led
 
+# Final status
 echo "✅ Client setup complete."
 echo "   • Config: $CONFIG"
 echo "   • Script: $SCRIPT"
-echo "   • Service: tower-led"
+echo "   • Services: wpa_supplicant@wlan0, tower-led"
