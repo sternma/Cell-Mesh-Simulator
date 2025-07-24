@@ -37,6 +37,11 @@ EOF
 # 3. Set wireless country
 raspi-config nonint do_wifi_country US
 
+# 4. Mask wpa_supplicant to prevent it from interfering with hostapd
+systemctl stop wpa_supplicant
+systemctl disable wpa_supplicant
+systemctl mask wpa_supplicant
+
 # 4. Configure TX power
 # Ensure correct regulatory domain
 iw reg set US
