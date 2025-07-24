@@ -11,7 +11,7 @@ Device.pin_factory = RPiGPIOFactory()
 led = RGBLED(red=18, green=13, blue=12)
 
 # Path to your JSON mapping
-CONFIG_PATH = Path("/home/pi/tower_led_config.json")
+CONFIG_PATH = Path("/home/pi/cell-mesh-simulator/src/config/tower_led_config.json")
 
 
 def load_config():
