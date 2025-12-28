@@ -7,7 +7,12 @@ SCRIPT="/home/pi/cell-mesh-simulator/src/tower_led.py"
 
 # 1. Install dependencies
 apt update
-apt install -y python3-gpiozero wireless-tools jq wpasupplicant
+apt install -y python3-pip wireless-tools jq wpasupplicant
+
+python3 -m pip install --upgrade pip --break-system-packages
+python3 -m pip install blinkt --break-system-packages
+
+python3 -c "import blinkt; print('Blinkt import OK')"
 
 # 1a. Unblock Wi-Fi if soft-blocked
  echo "Unblocking Wi-Fi..."
@@ -48,7 +53,7 @@ network={
     key_mgmt=NONE
     scan_ssid=1
     priority=10
-    bgscan="simple:30:-65:300"
+    bgscan="learn:1:-70:5"
 }
 NET
 done
