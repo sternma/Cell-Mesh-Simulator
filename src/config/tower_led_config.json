@@ -1,52 +1,53 @@
 {
-    "Tower1": [
-        1.0,
-        0.0,
-        0.0
-    ],
-    "Tower2": [
-        0.0,
-        1.0,
-        0.0
-    ],
-    "Tower3": [
-        0.0,
-        0.0,
-        1.0
-    ],
-    "Tower4": [
-        1.0,
-        1.0,
-        0.0
-    ],
-    "Tower5": [
-        1.0,
-        0.0,
-        1.0
-    ],
-    "Tower6": [
-        0.0,
-        1.0,
-        1.0
-    ],
-    "Tower7": [
-        1.0,
-        0.5,
-        0.0
-    ],
-    "Tower8": [
-        0.5,
-        0.0,
-        1.0
-    ],
-    "Tower9": [
-        0.5,
-        1.0,
-        0.0
-    ],
-    "Tower10": [
-        0.0,
-        0.5,
-        1.0
-    ]
+  "Tower1": {
+    "color": [1.0, 0.0, 0.0],
+    "freq": 2412,
+    "bssid": "in:se:rt:he:re:00"
+  },
+  "Tower2": {
+    "color": [0.0, 1.0, 0.0],
+    "freq": 2412,
+    "bssid": "in:se:rt:he:re:00"
+  },
+  "Tower3": {
+    "color": [0.0, 0.0, 1.0],
+    "freq": 2412,
+    "bssid": "in:se:rt:he:re:00"
+  },
+  "Tower4": {
+    "color": [1.0, 1.0, 0.0],
+    "freq": 2412,
+    "bssid": "in:se:rt:he:re:00"
+  },
+  "Tower5": {
+    "color": [1.0, 0.0, 1.0],
+    "freq": 2412,
+    "bssid": "in:se:rt:he:re:00"
+  },
+  "Tower6": {
+    "color": [0.0, 1.0, 1.0],
+    "freq": 2412,
+    "bssid": "in:se:rt:he:re:00"
+  },
+  "Tower7": {
+    "color": [1.0, 0.5, 0.0],
+    "freq": 2412,
+    "bssid": "in:se:rt:he:re:00"
+  },
+  "Tower8": {
+    "color": [0.5, 0.0, 1.0],
+    "freq": 2412,
+    "bssid": "in:se:rt:he:re:00"
+  },
+  "Tower9": {
+    "color": [0.5, 1.0, 0.0],
+    "freq": 2412,
+    "bssid": "in:se:rt:he:re:00"
+  },
+  "Tower10": {
+    "color": [0.0, 0.5, 1.0],
+    "freq": 2412,
+    "bssid": "in:se:rt:he:re:00"
+  }
 }
+
