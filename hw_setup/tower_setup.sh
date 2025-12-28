@@ -5,20 +5,19 @@ set -e
 DEFAULT_TX_POWER_MBM=1000  # 10 dBm
 
 # Validate arguments
-if [ "$#" -lt 4 ] || [ "$#" -gt 5 ]; then
-  echo "Usage: $0 <TOWER_ID> <STATIC_IP> <SSID> <CHANNEL> [TX_POWER_MBM]"
+if [ "$#" -lt 3 ] || [ "$#" -gt 4 ]; then
+  echo "Usage: $0 <TOWER_ID> <SSID> <CHANNEL> [TX_POWER_MBM]"
   echo "  <TX_POWER_MBM> optional, defaults to ${DEFAULT_TX_POWER_MBM} mBm (10 dBm)"
-  echo "Example: $0 1 192.168.50.11 Tower1 1 500   # 5 dBm"
+  echo "Example: $0 1 Tower1 1 500   # 5 dBm"
   exit 1
 fi
 
 TOWER_ID="$1"
-STATIC_IP="$2"
-SSID="$3"
-CHANNEL="$4"
+SSID="$2"
+CHANNEL="$3"
 
 # Use provided power level or default
-TX_POWER_MBM=${5:-$DEFAULT_TX_POWER_MBM}
+TX_POWER_MBM=${4:-$DEFAULT_TX_POWER_MBM}
 
 # 1. Install & stop hostapd
 apt update
@@ -43,16 +42,16 @@ RestartSec=5
 EOF
 
 # 3. Set wireless country
-raspi-config nonint do_wifi_country US
+sudo raspi-config nonint do_wifi_country US
 
 # 4. Mask wpa_supplicant to prevent it from interfering with hostapd
-systemctl stop wpa_supplicant || true
-systemctl disable wpa_supplicant || true
-systemctl mask wpa_supplicant || true
+sudo systemctl stop wpa_supplicant || true
+sudo systemctl disable wpa_supplicant || true
+sudo systemctl mask wpa_supplicant || true
 
 # 5. Configure TX power
 # Ensure correct regulatory domain
-iw reg set US
+sudo iw reg set US
 # Apply fixed power
 sudo iw dev wlan0 set txpower fixed ${TX_POWER_MBM}
 
@@ -61,7 +60,6 @@ HW_MODE="g"
 EXTRA=""
 if [ "${CHANNEL}" -gt 14 ]; then
   HW_MODE="a"
-  EXTRA="country_code=US"
 fi
 
 cat > /etc/hostapd/hostapd.conf <<EOF
@@ -73,7 +71,7 @@ driver=nl80211
 ssid=${SSID}
 hw_mode=${HW_MODE}
 channel=${CHANNEL}
-${EXTRA}
+country_code=US
 macaddr_acl=0
 auth_algs=1
 ignore_broadcast_ssid=1
@@ -87,9 +85,12 @@ sed -i 's|^#DAEMON_CONF.*|DAEMON_CONF="/etc/hostapd/hostapd.conf"|' /etc/default
 systemctl unmask hostapd
 systemctl enable hostapd
 systemctl restart hostapd
+sleep 1
+sudo iw reg set US
+sudo iw dev wlan0 set txpower fixed ${TX_POWER_MBM}
 
 # 9. Report
 current_power=$(iw dev wlan0 info | grep txpower)
 echo "Tower ${TOWER_ID} configured:" 
- echo "  SSID=${SSID}, CHANNEL=${CHANNEL}, IP=${STATIC_IP}" 
+ echo "  SSID=${SSID}, CHANNEL=${CHANNEL}" 
  echo "  TX power set to ${TX_POWER_MBM} mBm (${current_power})"
