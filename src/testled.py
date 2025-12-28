@@ -37,7 +37,7 @@ for i in range(8):
 blinkt.show()
 time.sleep(1)
 
-print("Blue on for 2s")
+print("Blue on for 1s")
 blinkt.clear()
 for i in range(8):
     blinkt.set_pixel(i, 0, 0, 255)
