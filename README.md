@@ -216,8 +216,6 @@ sudo iw dev wlan0 scan freq 2412 | head
 ## 📜 License
 
 Apache License 2.0. See [LICENSE](LICENSE).
-```
-
 
 
 
