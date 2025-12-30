@@ -27,6 +27,16 @@ raspi-config nonint do_wifi_country US
 echo "Bringing wlan0 up..."
 ip link set wlan0 up || true
 
+# 1d. Prevent wpa_supplicant from interfering (client roaming is handled via `iw` in tower_led.py)
+# Some images enable wpa_supplicant@wlan0 by default; mask both unit variants to be safe.
+echo "Disabling and masking wpa_supplicant..."
+systemctl stop wpa_supplicant.service 2>/dev/null || true
+systemctl stop wpa_supplicant@wlan0.service 2>/dev/null || true
+systemctl disable wpa_supplicant.service 2>/dev/null || true
+systemctl disable wpa_supplicant@wlan0.service 2>/dev/null || true
+systemctl mask wpa_supplicant.service 2>/dev/null || true
+systemctl mask wpa_supplicant@wlan0.service 2>/dev/null || true
+
 # 2. Check that your config & script exist
 if [ ! -f "$CONFIG" ]; then
   echo "Error: Config file not found at $CONFIG" >&2
@@ -78,4 +88,4 @@ echo "✅ Client setup complete."
 echo "   • Config: $CONFIG"
 echo "   • Script: $SCRIPT"
 echo "   • Services: tower-led"
-
+echo "   • wpa_supplicant: masked (client roaming is handled by tower_led.py via iw)"
