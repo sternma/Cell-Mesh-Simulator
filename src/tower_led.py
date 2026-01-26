@@ -15,10 +15,13 @@ POLL_INTERVAL = 1          # seconds between loops
 
 # Blinkt behavior
 BRIGHTNESS = 0.2           # 0.0 - 1.0
-SHOW_MODE = "single"       # "single" = one pixel lit per SSID, "all" = all pixels same color
 UNKNOWN_MODE = "off"       # "off" or "dim_white"
 DISCONNECT_GRACE_SEC = 3.0 # seconds to allow after disconnection before turning off LED
 PIXELS = 8                 # Blinkt has 8 LEDs
+
+# Signal-to-LED mapping (RSSI dBm -> 1..8 LEDs)
+SIGNAL_MIN_DBM = -90.0     # weakest signal -> 1 LED
+SIGNAL_MAX_DBM = -20.0     # strongest signal -> 8 LEDs
 
 # WiFi behavior
 SCAN_INTERVAL = 2              # seconds between roam evaluations
@@ -30,20 +33,6 @@ MAX_SCAN_TIME_PER_SSID_SEC = 3 # keep scans short-ish
 # Small timings for reliable hard-roams
 DISCONNECT_PAUSE_SEC = 0.25
 CONNECT_COOLDOWN_SEC = 0.25
-
-# Optionally map towers -> pixel index
-TOWER_PIXEL_MAP = {
-    "Tower1": 0,
-    "Tower2": 1,
-    "Tower3": 2,
-    "Tower4": 3,
-    "Tower5": 4,
-    "Tower6": 5,
-    "Tower7": 6,
-    "Tower8": 7,
-    # Tower9/Tower10, etc won't fit on 8 pixels in "single" mode.
-    # We'll handle overflow by falling back to "all" mode for those.
-}
 
 blinkt.set_clear_on_exit(True)
 blinkt.set_brightness(BRIGHTNESS)
@@ -71,28 +60,24 @@ def led_clear():
     blinkt.show()
 
 
-def led_set_color(rgb_floats, ssid: str | None = None):
-    """Apply LED output for the given SSID + RGB."""
+def signal_to_led_count(signal_dbm: float | None) -> int:
+    """Map RSSI in dBm to a 1..PIXELS LED count."""
+    if signal_dbm is None:
+        return 1
+    lo = float(SIGNAL_MIN_DBM)
+    hi = float(SIGNAL_MAX_DBM)
+    if hi <= lo:
+        return PIXELS
+    normalized = clamp01((float(signal_dbm) - lo) / (hi - lo))
+    return int(normalized * (PIXELS - 1)) + 1
+
+
+def led_set_strength_color(rgb_floats, signal_dbm: float | None):
+    """Apply LED output for the given RGB and signal strength."""
     r, g, b = float_rgb_to_int(rgb_floats)
-
-    if SHOW_MODE == "all":
-        for i in range(PIXELS):
-            blinkt.set_pixel(i, r, g, b)
-        blinkt.show()
-        return
-
-    # SHOW_MODE == "single"
+    count = signal_to_led_count(signal_dbm)
     blinkt.clear()
-
-    # If tower maps to a pixel, light that one.
-    if ssid and ssid in TOWER_PIXEL_MAP:
-        idx = TOWER_PIXEL_MAP[ssid]
-        blinkt.set_pixel(idx, r, g, b)
-        blinkt.show()
-        return
-
-    # If we can't map it, fall back to "all"
-    for i in range(PIXELS):
+    for i in range(count):
         blinkt.set_pixel(i, r, g, b)
     blinkt.show()
 
@@ -497,6 +482,7 @@ def main():
 
     last_ssid = None
     last_color = None
+    last_level = None
     last_scan = 0.0
     last_seen_connected = time.time()
     last_roam_time = 0.0
@@ -522,6 +508,7 @@ def main():
                     led_unknown()
                     last_ssid = None
                     last_color = None
+                    last_level = None
             time.sleep(POLL_INTERVAL)
             continue
 
@@ -533,20 +520,25 @@ def main():
                 print(f"{ssid} not in config → LED unknown", flush=True)
             last_ssid = ssid
             last_color = None
+            last_level = None
             led_unknown()
             time.sleep(POLL_INTERVAL)
             continue
 
-        # Only update LEDs/log if SSID or color changed
-        if ssid != last_ssid or color != last_color:
-            led_set_color(color, ssid=ssid)
-            print(f"Connected to {ssid}, LED set to {color}", flush=True)
+        signal_dbm = link.get("signal_dbm") if link else None
+        level = signal_to_led_count(signal_dbm)
+
+        # Only update LEDs/log if SSID, color, or signal level changed
+        if ssid != last_ssid or color != last_color or level != last_level:
+            led_set_strength_color(color, signal_dbm)
+            sig_str = f"{signal_dbm:.0f} dBm" if isinstance(signal_dbm, (int, float)) else "unknown"
+            print(f"Connected to {ssid}, RSSI {sig_str}, LEDs {level}/{PIXELS}", flush=True)
             last_ssid = ssid
             last_color = color
+            last_level = level
 
         time.sleep(POLL_INTERVAL)
 
 
 if __name__ == "__main__":
     main()
-

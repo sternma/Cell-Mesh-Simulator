@@ -170,17 +170,17 @@ The client daemon (`src/tower_led.py`) does:
 - Periodic `iw scan` on configured frequencies
 - Picks the best tower by RSSI (with a stickiness margin)
 - Performs a “hard roam” using `iw disconnect` + `iw connect`
-- Updates Blinkt! LEDs to show which SSID it’s currently on
+- Updates Blinkt! LEDs to show which SSID it’s currently on **and** signal strength
 
 Useful knobs in `tower_led.py`:
 - `SCAN_INTERVAL`: how often to scan (seconds)
 - `ROAM_MARGIN_DB`: how aggressively to roam (more negative = roam more)
 - `ROAM_COOLDOWN_SEC`: cooldown after roam
-- `BRIGHTNESS`, `SHOW_MODE`, `UNKNOWN_MODE`
+- `BRIGHTNESS`, `UNKNOWN_MODE`, `SIGNAL_MIN_DBM`, `SIGNAL_MAX_DBM`
 
 LED behavior note:
-- Blinkt! has 8 LEDs. In `SHOW_MODE="single"`, Towers 1–8 map to individual pixels (see `TOWER_PIXEL_MAP`).
-- Towers beyond 8 still work; they just fall back to lighting **all LEDs** with that tower’s color.
+- Blinkt! has 8 LEDs. The LED **bar length** represents signal strength (1 LED = weak, 8 LEDs = strong).
+- The **color** indicates the currently-associated tower (from `tower_led_config.json`).
 
 ---
 
@@ -194,7 +194,7 @@ journalctl -u tower-led -f -o cat
 You should see periodic lines like:
 - `SCAN: current=TowerX(...) | Tower1=... Tower2=...`
 - `Roaming: TowerA (...) → TowerB (...)`
-- `Connected to TowerX, LED set to (...)`
+- `Connected to TowerX, RSSI -55 dBm, LEDs 6/8`
 
 ### Confirm association + signal
 ```bash
@@ -216,8 +216,6 @@ sudo iw dev wlan0 scan freq 2412 | head
 ## 📜 License
 
 Apache License 2.0. See [LICENSE](LICENSE).
-
-
 
 
 
