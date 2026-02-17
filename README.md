@@ -24,6 +24,7 @@ Once that’s working, expand by adding more towers and/or more clients.
 README.md                        ← (this file)  
 src/  
 ├── tower_led.py                 ← Client roam + LED mapping daemon  
+├── tower_gpio_indicator.py      ← Optional tower GPIO client-connected indicator  
 └── config/  
     └── tower_led_config.json    ← SSID ➜ { color, freq, bssid }  
   
@@ -52,13 +53,19 @@ hw_setup/
 Run this on each tower Pi as root:
 
 ```bash
-sudo hw_setup/tower_setup.sh <TOWER_ID> <SSID> <CHANNEL> [TX_POWER_MBM]
+sudo hw_setup/tower_setup.sh <TOWER_ID> <SSID> <CHANNEL> [TX_POWER_MBM] [OPTIONS]
 ```
 
 - **TOWER_ID**: numeric label (used for logging only)
 - **SSID**: e.g. `Tower1`
 - **CHANNEL**: `1`, `6`, `11` (2.4 GHz) or `36+` (5 GHz)
 - **TX_POWER_MBM**: optional transmit power in **mBm** (100 mBm = 1 dBm). Defaults to `1000` (10 dBm).
+
+Optional tower GPIO indicator flags:
+- `--enable-gpio-indicator`: enable GPIO output when at least one client is connected
+- `--gpio-pins <CSV>`: GPIO output pins (default `18,13,12`)
+- `--gpio-on-mask <CSV>`: `0/1` mask aligned to `--gpio-pins` (default `0,1,0`)
+- `--gpio-poll-interval <SEC>`: station poll interval in seconds (default `1.0`)
 
 **Minimum setup example (2 towers):**
 
@@ -72,16 +79,29 @@ Tower 2:
 sudo hw_setup/tower_setup.sh 2 Tower2 1 500
 ```
 
+Tower with optional GPIO indicator (old RGB breadboard pinout, green when connected):
+```bash
+sudo hw_setup/tower_setup.sh 1 Tower1 1 500 --enable-gpio-indicator --gpio-pins 18,13,12 --gpio-on-mask 0,1,0
+```
+
 Notes:
 - Towers are configured as **open APs** (`wpa=0`) and default to **hidden SSIDs** (`ignore_broadcast_ssid=1`).
 - The setup script disables/masks `wpa_supplicant` on towers to prevent interference with `hostapd`.
 - Regulatory domain is set to **US** and a fixed TX power is applied.
+- If `--enable-gpio-indicator` is used, a `tower-gpio-indicator` systemd service is installed. It turns configured GPIO outputs on when any station is associated and off when there are no associated stations.
 
 Verify hostapd:
 
 ```bash
 sudo systemctl status hostapd
 journalctl -u hostapd -f
+```
+
+If GPIO indicator is enabled:
+
+```bash
+sudo systemctl status tower-gpio-indicator
+journalctl -u tower-gpio-indicator -f -o cat
 ```
 
 ---
@@ -216,6 +236,5 @@ sudo iw dev wlan0 scan freq 2412 | head
 ## 📜 License
 
 Apache License 2.0. See [LICENSE](LICENSE).
-
 
 
