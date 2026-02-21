@@ -1,76 +1,115 @@
 #!/bin/bash
-set -e
-#NOTE: RUN WITH SUDO
+set -euo pipefail
 
-# Paths to your existing files
-CONFIG="/home/pi/cell-mesh-simulator/src/config/tower_led_config.json"
-SCRIPT="/home/pi/cell-mesh-simulator/src/tower_led.py"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+SRC_DIR="${REPO_DIR}/src"
+SCRIPT_PATH="${SRC_DIR}/client_roaming_led.py"
+TOWER_CONFIG_PATH="${SRC_DIR}/config/client_tower_config.json"
 
-# 1. Install dependencies
+RUNTIME_CONFIG_DIR="/etc/cell-mesh-simulator"
+RUNTIME_CONFIG_PATH="${RUNTIME_CONFIG_DIR}/client_roaming_led.json"
+
+SERVICE_NAME="cell-mesh-client"
+SERVICE_PATH="/etc/systemd/system/${SERVICE_NAME}.service"
+
+if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
+  cat <<EOF
+Usage: sudo hw_setup/client_setup.sh
+
+Installs and configures the client roaming daemon and systemd service.
+Creates:
+  - ${SERVICE_PATH}
+  - ${RUNTIME_CONFIG_PATH}
+EOF
+  exit 0
+fi
+
+if [ "${EUID}" -ne 0 ]; then
+  echo "Run as root: sudo hw_setup/client_setup.sh" >&2
+  exit 1
+fi
+
+echo "Installing client dependencies..."
 apt update
-apt install -y python3-pip iw rfkill jq
+apt install -y python3-pip iw rfkill
 
 python3 -m pip install --upgrade pip --break-system-packages
 python3 -m pip install blinkt --break-system-packages
-
 python3 -c "import blinkt; print('Blinkt import OK')"
 
-# 1a. Unblock Wi-Fi if soft-blocked
-echo "Unblocking Wi-Fi..."
+echo "Preparing Wi-Fi interface..."
 rfkill unblock wifi || true
-
-# 1b. Set Wi-Fi country to US (persist across reboots)
-echo "Setting Wi-Fi country to US..."
-raspi-config nonint do_wifi_country US
-
-# 1c. Bring wlan0 up (best-effort)
-echo "Bringing wlan0 up..."
+if command -v raspi-config >/dev/null 2>&1; then
+  raspi-config nonint do_wifi_country US || true
+else
+  echo "Warning: raspi-config not found; skipping country setup" >&2
+fi
 ip link set wlan0 up || true
 
-# 1d. Prevent wpa_supplicant from interfering (client roaming is handled via `iw` in tower_led.py)
-# Some images enable wpa_supplicant@wlan0 by default; mask both unit variants to be safe.
-echo "Disabling and masking wpa_supplicant..."
-systemctl stop wpa_supplicant.service 2>/dev/null || true
-systemctl stop wpa_supplicant@wlan0.service 2>/dev/null || true
-systemctl disable wpa_supplicant.service 2>/dev/null || true
-systemctl disable wpa_supplicant@wlan0.service 2>/dev/null || true
-systemctl mask wpa_supplicant.service 2>/dev/null || true
-systemctl mask wpa_supplicant@wlan0.service 2>/dev/null || true
+echo "Disabling wpa_supplicant to avoid roaming conflicts..."
+for unit in wpa_supplicant.service wpa_supplicant@wlan0.service; do
+  systemctl stop "${unit}" 2>/dev/null || true
+  systemctl disable "${unit}" 2>/dev/null || true
+  systemctl mask "${unit}" 2>/dev/null || true
+done
 
-# 2. Check that your config & script exist
-if [ ! -f "$CONFIG" ]; then
-  echo "Error: Config file not found at $CONFIG" >&2
+if [ ! -f "${SCRIPT_PATH}" ]; then
+  echo "Error: client daemon not found at ${SCRIPT_PATH}" >&2
   exit 1
 fi
-if [ ! -f "$SCRIPT" ]; then
-  echo "Error: Python script not found at $SCRIPT" >&2
+if [ ! -f "${TOWER_CONFIG_PATH}" ]; then
+  echo "Error: tower config not found at ${TOWER_CONFIG_PATH}" >&2
   exit 1
 fi
 
-# 3. Set ownership & permissions
-chown pi:pi "$CONFIG" "$SCRIPT"
-chmod 644 "$CONFIG"
-chmod +x  "$SCRIPT"
+chmod 755 "${SCRIPT_PATH}"
+chmod 644 "${TOWER_CONFIG_PATH}"
 
-# 4. Create tower-led systemd service
-SERVICE="/etc/systemd/system/tower-led.service"
-cat > "$SERVICE" <<EOF
+mkdir -p "${RUNTIME_CONFIG_DIR}"
+if [ ! -f "${RUNTIME_CONFIG_PATH}" ]; then
+  cat > "${RUNTIME_CONFIG_PATH}" <<'EOF'
+{
+  "interface": "wlan0",
+  "poll_interval_sec": 1.0,
+  "scan_interval_sec": 2.0,
+  "scan_timeout_sec": 3.0,
+  "roam_margin_db": -2.0,
+  "roam_cooldown_sec": 4.0,
+  "scan_freshness_ms": 1500,
+  "disconnect_grace_sec": 3.0,
+  "disconnect_pause_sec": 0.25,
+  "connect_cooldown_sec": 0.25,
+  "brightness": 0.2,
+  "unknown_mode": "off",
+  "signal_min_dbm": -90.0,
+  "signal_max_dbm": -20.0,
+  "pixels": 8
+}
+EOF
+  chmod 644 "${RUNTIME_CONFIG_PATH}"
+fi
+
+echo "Validating client and tower config files..."
+python3 "${SCRIPT_PATH}" \
+  --tower-config "${TOWER_CONFIG_PATH}" \
+  --runtime-config "${RUNTIME_CONFIG_PATH}" \
+  --validate-config \
+  --log-level INFO >/dev/null
+
+cat > "${SERVICE_PATH}" <<EOF
 [Unit]
-Description=Tower-LED Indicator (dynamic config)
+Description=Cell Mesh Client Roaming + Blinkt LED
 After=network-online.target
 Wants=network-online.target
 
 [Service]
-User=pi
-WorkingDirectory=/home/pi/cell-mesh-simulator/src
-
-# Make sure the interface exists and is up before python starts.
-# This is best-effort; python will still handle reconnects.
+Type=simple
+WorkingDirectory=${SRC_DIR}
 ExecStartPre=/sbin/ip link set wlan0 up
-
-ExecStart=/usr/bin/env python3 $SCRIPT
+ExecStart=/usr/bin/env python3 ${SCRIPT_PATH} --tower-config ${TOWER_CONFIG_PATH} --runtime-config ${RUNTIME_CONFIG_PATH}
 Restart=always
-RestartSec=5s
+RestartSec=5
 StandardOutput=journal
 StandardError=journal
 
@@ -78,14 +117,13 @@ StandardError=journal
 WantedBy=multi-user.target
 EOF
 
-# 5. Enable & start tower-led service
 systemctl daemon-reload
-systemctl enable tower-led
-systemctl restart tower-led
+systemctl enable "${SERVICE_NAME}"
+systemctl restart "${SERVICE_NAME}"
 
-# Final status
-echo "✅ Client setup complete."
-echo "   • Config: $CONFIG"
-echo "   • Script: $SCRIPT"
-echo "   • Services: tower-led"
-echo "   • wpa_supplicant: masked (client roaming is handled by tower_led.py via iw)"
+echo "Client setup complete."
+echo "  Script: ${SCRIPT_PATH}"
+echo "  Service: ${SERVICE_NAME}"
+echo "  Tower config: ${TOWER_CONFIG_PATH}"
+echo "  Runtime config: ${RUNTIME_CONFIG_PATH}"
+echo "  Follow logs: journalctl -u ${SERVICE_NAME} -f -o cat"
