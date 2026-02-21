@@ -1,5 +1,3 @@
-### README.md
-
 # Cell Mesh Simulator
 
 A lightweight Raspberry Pi-based system that simulates a cellular network using Wi-Fi access points. Each Raspberry Pi “tower” broadcasts a unique SSID (usually hidden). A portable Raspberry Pi client roams between towers and displays the currently-associated tower on a **Pimoroni Blinkt!** LED bar.
@@ -44,6 +42,7 @@ hw_setup/
 | USB-C power supplies             | 2+  | 5 V ⎓ 3 A, for the towers |
 | Pimoroni Blinkt! (8-LED bar)     | 1+  | One per client (plugs directly onto GPIO header) |
 | USB-C Power bank                 | 1+  | 5 V ⎓ 2 A+ for portable client |
+| Tower GPIO indicator parts (optional) | 1+ set per tower | LED or other indicator load, suitable resistor/driver, jumper wires |
 ---
 
 ## 🧱 Build Steps (Fresh Pi Images)
@@ -62,7 +61,11 @@ Use these for first-time bring-up on fresh Raspberry Pi OS Lite installs.
    ```
 4. Run tower setup:
    ```bash
-   sudo hw_setup/tower_setup.sh <TOWER_ID> <SSID> <CHANNEL> [TX_POWER_MBM]
+   sudo hw_setup/tower_setup.sh <TOWER_ID> <SSID> <CHANNEL> [TX_POWER_MBM] [OPTIONS]
+   ```
+5. Optional: enable tower GPIO indicator service at setup time:
+   ```bash
+   sudo hw_setup/tower_setup.sh 1 Tower1 1 500 --enable-gpio-indicator
    ```
 
 ### Client (per client Pi)
@@ -83,6 +86,7 @@ Use these for first-time bring-up on fresh Raspberry Pi OS Lite installs.
 6. Run client setup:
    ```bash
    sudo hw_setup/client_setup.sh
+   ```
 
 ---
 
@@ -107,6 +111,8 @@ Optional tower GPIO indicator flags:
 - `--gpio-on-mask <CSV>`: `0/1` mask aligned to `--gpio-pins` (default `0,1,0`)
 - `--gpio-poll-interval <SEC>`: station poll interval in seconds (default `1.0`)
 
+Passing any `--gpio-*` option also enables the indicator service automatically.
+
 **Minimum setup example (2 towers):**
 
 Tower 1:
@@ -129,6 +135,53 @@ Notes:
 - The setup script disables/masks `wpa_supplicant` on towers to prevent interference with `hostapd`.
 - Regulatory domain is set to **US** and a fixed TX power is applied.
 - If `--enable-gpio-indicator` is used, a `tower-gpio-indicator` systemd service is installed. It turns configured GPIO outputs on when any station is associated and off when there are no associated stations.
+
+### 1a) Optional Tower GPIO Indicator (Behavior)
+
+When enabled, `hw_setup/tower_setup.sh` installs:
+- Script: `/home/pi/cell-mesh-simulator/src/tower_gpio_indicator.py`
+- Config: `/etc/cell-mesh-simulator/tower_gpio_indicator.json`
+- Systemd service: `/etc/systemd/system/tower-gpio-indicator.service`
+
+Runtime behavior:
+- Polls associated stations using `iw dev wlan0 station dump`
+- If station count is `> 0`, turns ON only pins where `on_mask` is `1`
+- If station count is `0`, turns all configured outputs OFF
+- On shutdown/error cleanup, turns all configured outputs OFF
+
+Default config written by setup:
+
+```json
+{
+  "interface": "wlan0",
+  "pins": [18, 13, 12],
+  "on_mask": [0, 1, 0],
+  "poll_interval_sec": 1.0
+}
+```
+
+Config rules:
+- `pins` must be a non-empty integer array.
+- `on_mask` must have exactly one entry per pin.
+- `on_mask` entries may be `0/1` or `true/false`.
+- `poll_interval_sec` must be a positive number.
+
+Service operations:
+
+```bash
+sudo systemctl status tower-gpio-indicator
+sudo systemctl restart tower-gpio-indicator
+journalctl -u tower-gpio-indicator -f -o cat
+```
+
+Disable/remove behavior:
+
+```bash
+sudo systemctl disable --now tower-gpio-indicator
+```
+
+Path note:
+- The optional indicator service currently points to `/home/pi/cell-mesh-simulator/src/tower_gpio_indicator.py`. If your clone lives somewhere else, update `GPIO_SCRIPT` in `hw_setup/tower_setup.sh` before enabling the feature.
 
 Verify hostapd:
 
@@ -303,6 +356,9 @@ sudo iw dev wlan0 scan freq 2412 | head
 - **No SCAN lines**: config produced an empty/invalid `bssid_map` (bad BSSID formatting, placeholder values, etc.)
 - **Stuck on one tower**: adjust `roam_margin_db` (make it more negative to roam more)
 - **hostapd flapping**: check `journalctl -u hostapd -f` and confirm wlan0 isn’t being managed by other services
+- **tower-gpio-indicator not starting**: check `journalctl -u tower-gpio-indicator -e -o cat`, then verify `python3-gpiozero` is installed and the script path exists.
+- **GPIO never turns on**: verify the tower actually has associated clients with `iw dev wlan0 station dump`.
+- **GPIO mask appears inverted**: remember `on_mask=1` means "pin ON when connected"; `0` means always OFF.
 
 ### Single-Pi validation path
 If you only have one Raspberry Pi, you can still validate the client daemon:
