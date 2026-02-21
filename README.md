@@ -23,9 +23,9 @@ Once that’s working, expand by adding more towers and/or more clients.
 ```
 README.md                        ← (this file)  
 src/  
-├── tower_led.py                 ← Client roam + LED mapping daemon  
+├── client_roaming_led.py        ← Client roam + LED mapping daemon  
 └── config/  
-    └── tower_led_config.json    ← SSID ➜ { color, freq, bssid }  
+    └── client_tower_config.json ← SSID ➜ { color, freq, bssid }  
   
 hw_setup/  
 ├── tower_setup.sh               ← Tower AP install & hostapd config script  
@@ -91,8 +91,8 @@ journalctl -u hostapd -f
 On the client Pi:
 
 1. Ensure these exist:
-   - `src/tower_led.py`
-   - `src/config/tower_led_config.json`
+   - `src/client_roaming_led.py`
+   - `src/config/client_tower_config.json`
 
 2. Run installer:
 
@@ -103,27 +103,44 @@ sudo hw_setup/client_setup.sh
 What it does:
 - Installs dependencies (Python + `blinkt`, plus `iw`, `rfkill`, etc.)
 - Unblocks Wi-Fi and sets country to US
-- Creates and starts the `tower-led` systemd service
+- Creates and starts the `cell-mesh-client` systemd service
+- Creates runtime config at `/etc/cell-mesh-simulator/client_roaming_led.json` (if missing)
 - **Disables/masks `wpa_supplicant`** (both `wpa_supplicant.service` and `wpa_supplicant@wlan0.service`) so it doesn’t fight roaming
 
 3. Restart after changes:
 
 ```bash
-sudo systemctl restart tower-led
-journalctl -u tower-led -f -o cat
+sudo systemctl restart cell-mesh-client
+journalctl -u cell-mesh-client -f -o cat
 ```
 
 Important:
-- With `wpa_supplicant` masked, Wi-Fi association is handled entirely by `tower_led.py` using `iw`.
+- With `wpa_supplicant` masked, Wi-Fi association is handled entirely by `client_roaming_led.py` using `iw`.
 - If you later want “normal Wi-Fi” back on the client for other projects, you’ll need to unmask/enable `wpa_supplicant` again.
 
 ---
 
-## 🧠 tower_led_config.json Format
+## 🧠 Client Config Files
+
+The client uses **two different config files**:
+
+- `src/config/client_tower_config.json`: tower map (SSID, color, freq, bssid). You maintain this file.
+- `/etc/cell-mesh-simulator/client_roaming_led.json`: runtime behavior (scan cadence, roam margin, brightness, etc.). `hw_setup/client_setup.sh` creates this if missing.
+
+The systemd service passes both explicitly:
+
+```bash
+--tower-config src/config/client_tower_config.json
+--runtime-config /etc/cell-mesh-simulator/client_roaming_led.json
+```
+
+---
+
+## 🧠 client_tower_config.json (Tower Map) Format
 
 Config lives at:
 
-- `src/config/tower_led_config.json`
+- `src/config/client_tower_config.json`
 
 It is keyed by SSID. Each entry includes:
 - `color`: RGB floats `[0.0–1.0]`
@@ -145,20 +162,35 @@ Important:
 
 ---
 
+## 🧠 client_roaming_led.json (Runtime) Format
+
+Runtime config lives at:
+
+- `/etc/cell-mesh-simulator/client_roaming_led.json`
+
+This controls daemon behavior (not tower definitions), including:
+- `scan_interval_sec`
+- `roam_margin_db`
+- `roam_cooldown_sec`
+- `brightness`
+- `unknown_mode`
+
+---
+
 ## ➕ Scaling Up (No Code Changes)
 
 This system is designed to scale by configuration and setup scripts alone.
 
 ### Add more towers
 1. Run `hw_setup/tower_setup.sh` on each new tower with a new SSID/channel.
-2. Add a new entry for that SSID in `src/config/tower_led_config.json`.
+2. Add a new entry for that SSID in `src/config/client_tower_config.json`.
 
 That’s it. The client automatically considers whatever towers appear in the config.
 
 ### Add more clients
 1. Put a Blinkt! on each client.
 2. Run `hw_setup/client_setup.sh` on each client.
-3. Copy the same `src/config/tower_led_config.json` to each client (or customize per client if you want different colors).
+3. Copy the same `src/config/client_tower_config.json` to each client (or customize per client if you want different colors).
 
 There is no enforced limit on the number of towers or clients. Practical limits are just Wi-Fi airtime and interference, which only come into play at very large client and tower populations.
 
@@ -166,21 +198,22 @@ There is no enforced limit on the number of towers or clients. Practical limits 
 
 ## ⚙️ Behavior & Tweaks
 
-The client daemon (`src/tower_led.py`) does:
+The client daemon (`src/client_roaming_led.py`) does:
 - Periodic `iw scan` on configured frequencies
 - Picks the best tower by RSSI (with a stickiness margin)
 - Performs a “hard roam” using `iw disconnect` + `iw connect`
 - Updates Blinkt! LEDs to show which SSID it’s currently on **and** signal strength
 
-Useful knobs in `tower_led.py`:
-- `SCAN_INTERVAL`: how often to scan (seconds)
-- `ROAM_MARGIN_DB`: how aggressively to roam (more negative = roam more)
-- `ROAM_COOLDOWN_SEC`: cooldown after roam
-- `BRIGHTNESS`, `UNKNOWN_MODE`, `SIGNAL_MIN_DBM`, `SIGNAL_MAX_DBM`
+Useful knobs in `/etc/cell-mesh-simulator/client_roaming_led.json`:
+- `scan_interval_sec`: how often to scan/consider roams
+- `roam_margin_db`: roaming stickiness (more negative = roam more)
+- `roam_cooldown_sec`: cooldown after a roam
+- `brightness`, `unknown_mode`, `signal_min_dbm`, `signal_max_dbm`
+- `disconnect_grace_sec`, `scan_freshness_ms`, `scan_timeout_sec`
 
 LED behavior note:
 - Blinkt! has 8 LEDs. The LED **bar length** represents signal strength (1 LED = weak, 8 LEDs = strong).
-- The **color** indicates the currently-associated tower (from `tower_led_config.json`).
+- The **color** indicates the currently-associated tower (from `client_tower_config.json`).
 
 ---
 
@@ -188,13 +221,13 @@ LED behavior note:
 
 ### Client logs
 ```bash
-journalctl -u tower-led -f -o cat
+journalctl -u cell-mesh-client -f -o cat
 ```
 
 You should see periodic lines like:
-- `SCAN: current=TowerX(...) | Tower1=... Tower2=...`
-- `Roaming: TowerA (...) → TowerB (...)`
-- `Connected to TowerX, RSSI -55 dBm, LEDs 6/8`
+- `SCAN current=TowerX(...) | Tower1=... Tower2=...`
+- `ROAM TowerA(...) -> TowerB(...) [...]`
+- `Connected TowerX RSSI=-55 dBm LEDs=6/8`
 
 ### Confirm association + signal
 ```bash
@@ -208,14 +241,33 @@ sudo iw dev wlan0 scan freq 2412 | head
 
 ### Common failure modes
 - **No SCAN lines**: config produced an empty/invalid `bssid_map` (bad BSSID formatting, placeholder values, etc.)
-- **Stuck on one tower**: adjust `ROAM_MARGIN_DB` (make it more negative to roam more)
+- **Stuck on one tower**: adjust `roam_margin_db` (make it more negative to roam more)
 - **hostapd flapping**: check `journalctl -u hostapd -f` and confirm wlan0 isn’t being managed by other services
+
+### Single-Pi validation path
+If you only have one Raspberry Pi, you can still validate the client daemon:
+
+1. Put at least one real tower entry (real `bssid` + `freq`) in `src/config/client_tower_config.json`, then flash the Pi as a client and run `sudo hw_setup/client_setup.sh`.
+2. Run a quick diagnosis (no daemon loop):
+```bash
+sudo python3 src/client_roaming_led.py --validate-config
+sudo python3 src/client_roaming_led.py --diagnose
+```
+3. Run live daemon logs:
+```bash
+journalctl -u cell-mesh-client -f -o cat
+```
+4. Manually test Blinkt output by joining/leaving a reachable Wi-Fi AP listed in `src/config/client_tower_config.json`:
+```bash
+sudo iw dev wlan0 disconnect
+```
+5. Confirm LED transitions and connection state:
+```bash
+sudo iw dev wlan0 link
+```
 
 ---
 
 ## 📜 License
 
 Apache License 2.0. See [LICENSE](LICENSE).
-
-
-
