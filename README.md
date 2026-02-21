@@ -45,6 +45,46 @@ hw_setup/
 | USB-C Power bank                 | 1+  | 5 V ⎓ 2 A+ for portable client |
 ---
 
+## 🧱 Build Steps (Fresh Pi Images)
+
+Use these for first-time bring-up on fresh Raspberry Pi OS Lite installs.
+
+### Tower (per tower Pi)
+
+1. Flash a fresh **Raspberry Pi OS Lite** image to a microSD card and insert it into the Pi.
+2. Power on with **wired Ethernet** connected.  
+   (After tower setup, normal Wi-Fi client access is disabled on the tower.)
+3. Clone this repo:
+   ```bash
+   git clone https://github.com/sternma/Cell-Mesh-Simulator.git
+   cd Cell-Mesh-Simulator
+   ```
+4. Run tower setup:
+   ```bash
+   sudo hw_setup/tower_setup.sh <TOWER_ID> <SSID> <CHANNEL> [TX_POWER_MBM]
+   ```
+
+### Client (per client Pi)
+
+1. Flash a fresh **Raspberry Pi OS Lite** image to a microSD card and insert it into the Pi.
+2. Install and attach the **Pimoroni Blinkt!** LED bar.
+3. Power on with **wired Ethernet** connected.  
+   (After client setup, normal Wi-Fi client management is disabled.)
+4. Clone this repo:
+   ```bash
+   git clone https://github.com/sternma/Cell-Mesh-Simulator.git
+   cd Cell-Mesh-Simulator
+   ```
+5. Run client setup:
+   ```bash
+   sudo hw_setup/client_setup.sh
+   ```
+6. Shut down, then unplug Ethernet and wall power.
+7. Connect a USB cable from the battery bank to the Pi.
+8. Power on the device.
+
+---
+
 ## 🚀 Setup
 
 ### 1) Tower Setup (Access Points)
