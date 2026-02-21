@@ -75,13 +75,13 @@ Use these for first-time bring-up on fresh Raspberry Pi OS Lite installs.
    git clone https://github.com/sternma/Cell-Mesh-Simulator.git
    cd Cell-Mesh-Simulator
    ```
-5. Run client setup:
+5. Edit the client tower config:
+   - Open `src/config/client_tower_config.json`.
+   - Replace the example/placeholder entries (including fake BSSIDs like `in:se:rt:he:re:00`) with your real tower SSIDs, BSSIDs, frequencies, and colors.
+   - Ensure at least one tower entry contains valid values before continuing.
+6. Run client setup:
    ```bash
    sudo hw_setup/client_setup.sh
-   ```
-6. Shut down, then unplug Ethernet and wall power.
-7. Connect a USB cable from the battery bank to the Pi.
-8. Power on the device.
 
 ---
 
